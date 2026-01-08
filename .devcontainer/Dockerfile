@@ -23,6 +23,6 @@ RUN pip3 install --upgrade -r requirements.txt && \
     rm -rf /root/.cache/pip
 # install collections
 COPY requirements.yml .
-USER $USERNAME
 RUN ansible-galaxy install -r requirements.yml
+USER $USERNAME
 ENTRYPOINT ["/bin/bash"]
