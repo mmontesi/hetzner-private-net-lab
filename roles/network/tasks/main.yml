@@ -1,0 +1,19 @@
+---
+
+- name: Create network
+  hetzner.hcloud.network:
+    api_token: "{{ hcloud_token }}"
+    name: "{{ network_name }}"
+    ip_range: "{{ network_ip_range }}"
+    state: present
+  delegate_to: localhost
+
+- name: Create a basic subnetwork
+  hetzner.hcloud.subnetwork:
+    api_token: "{{ hcloud_token }}"
+    network: "{{ network_name }}"
+    ip_range: "{{ network_subnet_ip_range }}"
+    network_zone: "eu-central"
+    type: cloud
+    state: present
+  delegate_to: localhost

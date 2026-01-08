@@ -1,0 +1,34 @@
+---
+all:
+  vars:
+    secure_network_prefix: "securenet"
+    gateway_ssh_public_key: "<your-ssh-public-key-here>"
+    gateway_url: "<your-subdomain-here>.duckdns.org"
+    duckdns_subdomain: "<your-subdomain-here>"
+    duckdns_token: "<your-duckdns-token-here>"
+    private_networks:
+      - name: net-01
+        address: "10.10.0.0/16"
+        subnet: "10.10.0.0/24"
+        prefix: "10.10"
+        infrastructure: "true"
+      # - name: net-02
+      #   address: "10.11.0.0/16"
+      #   subnet: "10.11.0.0/24"
+      #   prefix: "10.11"
+
+  children:
+    private_vms:
+      hosts:
+        private-vm01:
+          vm_name: "private-vm01"
+          vm_image: "ubuntu-24.04"
+          vm_server_type: "cx33"
+          vm_location: "hel1"
+          vm_network: "net-01"
+          vm_network_prefix: "10.10"
+          vm_new_user: "vmuser"
+          vm_http_proxy: "http://10.10.0.2:3128"
+          vm_noproxy_for: "127.0.0.1/8,172.17.0.0/16,172.18.0.0/16,10.10.0.0/16"
+          vm_primary_dns: "10.10.0.2"
+          vm_secondary_dns: "185.12.64.1"

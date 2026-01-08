@@ -1,0 +1,93 @@
+---
+- name: Render cloud-init
+  delegate_to: localhost
+  block:
+    - name: Render cloudinit from template
+      ansible.builtin.set_fact:
+        gateway_rendered_userdata: "{{ lookup('template', 'templates/cloudinit-userdata.yml.j2') }}"
+      no_log: "{{ not debug_mode | default(true) }}"
+
+- name: Create gateway server
+  hetzner.hcloud.server:
+    api_token: "{{ hcloud_token }}"
+    name: "{{ gateway_name }}"
+    server_type: "{{ gateway_server_type | default('cx23') }}"
+    image: "{{ gateway_image }}"
+    location: "{{ gateway_location | default('hel1') }}"
+    enable_ipv4: true
+    enable_ipv6: false
+    private_networks:
+      - "{{ gateway_network }}"
+    ssh_keys:
+      - "{{ gateway_ssh_key }}"
+    user_data: "{{ gateway_rendered_userdata | default(omit) }}"
+    labels:
+      role: "gateway"
+    state: started
+  register: gateway_server
+
+- name: Get server's IP address
+  delegate_to: localhost
+  block:
+    - name: Extract server IP addresses
+      ansible.builtin.set_fact:
+        gateway_server_ip: "{{ gateway_server.hcloud_server.private_networks_info[0].ip }}"
+        gateway_server_public_ip: "{{ gateway_server.hcloud_server.ipv4_address }}"
+    - name: Print the server info
+      ansible.builtin.debug:
+        msg: >-
+          VM: name={{ gateway_name }};
+          privateIP={{ gateway_server_ip }};
+          publicIP={{ gateway_server_public_ip }};
+          server_type={{ gateway_server_type }};
+          image={{ gateway_image }}
+
+- name: Set ansible_host for newly created VM
+  ansible.builtin.set_fact:
+    ansible_host: "{{ gateway_server_public_ip }}"
+
+- name: Waiting for cloudinit to complete and ssh to be up
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    state: started
+    port: 22
+    delay: 5
+    sleep: 10
+    timeout: 30
+    connect_timeout: 3
+  delegate_to: localhost
+  register: gateway_wait_ssh_availability
+  retries: 10
+  until: gateway_wait_ssh_availability is not failed
+
+- name: Wait for wg-easy container to start
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ gateway_wgeasy_ui_port | default('51821') }}"
+    timeout: 180
+    delay: 10
+  delegate_to: localhost
+
+- name: Display wg-easy configuration
+  delegate_to: localhost
+  ansible.builtin.debug:
+    msg: |
+      =====================================
+      WireGuard Gateway (wg-easy) Setup Complete
+      =====================================
+      Server Public IP: {{ gateway_server_public_ip }}
+      WireGuard Port: {{ gateway_wireguard_port | default('51820') }}
+      WireGuard Network: {{ gateway_wireguard_address | default('10.200.0.1/24') }}
+
+      Web UI Access:
+      URL: http://{{ gateway_server_public_ip }}:{{ gateway_wgeasy_ui_port | default('51821') }}
+      Password: {{ gateway_wgeasy_password | default('changeme') }}
+
+      =====================================
+      Next Steps:
+      1. Access the web UI at the URL above
+      2. Click "New" to add a client
+      3. Scan the QR code with WireGuard mobile app
+         OR download the config file for desktop
+      4. IMPORTANT: Change the default password!
+      =====================================

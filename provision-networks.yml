@@ -1,0 +1,73 @@
+---
+- name: Networks summary
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Summary
+      ansible.builtin.debug:
+        msg: "network name: {{ item.name }}, CIDR: {{ item.address }}"
+      loop: "{{ private_networks }}"
+      tags:
+        - network
+        - router
+
+- name: Create SSH key for gateway
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create SSH key in Hetzner Cloud
+      hetzner.hcloud.ssh_key:
+        api_token: "{{ hcloud_token }}"
+        name: "{{ secure_network_prefix }}-key"
+        public_key: "{{ gateway_ssh_public_key }}"
+        state: present
+      tags: network
+
+- name: Create networks and subnets
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Network creation
+      ansible.builtin.include_role:
+        name: network
+      vars:
+        network_name: "{{ item.name }}"
+        network_ip_range: "{{ item.address }}"
+        network_subnet_ip_range: "{{ item.subnet }}"
+      loop: "{{ private_networks }}"
+      tags: network
+
+- name: Create gateway VM in the infrastructure network
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Create gateway VM
+      ansible.builtin.include_role:
+        name: gateway
+      vars:
+        gateway_name: "{{ secure_network_prefix }}-gateway"
+        gateway_ssh_key: "{{ secure_network_prefix }}-key"
+        gateway_network: "{{ item.name }}"
+        gateway_network_address: "{{ item.address }}"
+        gateway_subnet_ip_range: "{{ item.subnet }}"
+        gateway_network_prefix: "{{ item.prefix }}"
+        gateway_new_user_password: "{{ new_user_password }}"
+      loop: "{{ private_networks | selectattr('infrastructure', 'defined') | selectattr('infrastructure', 'equalto', 'true') | list }}"
+      tags: network
+
+# - name: Create and configure routers in each network
+#   hosts: localhost
+#   gather_facts: false
+#   tasks:
+#     - name: Create router VMs
+#       ansible.builtin.include_role:
+#         name: router
+#       vars:
+#         router_name: "router-{{ item.name }}"
+#         router_network: "{{ item.name }}"
+#         router_network_address: "{{ item.address }}"
+#         router_subnet_ip_range: "{{ item.subnet }}"
+#         router_network_prefix: "{{ item.prefix }}"
+#         router_new_user_password: "{{ new_user_password }}"
+#       loop: "{{ private_networks }}"
+#       tags: router

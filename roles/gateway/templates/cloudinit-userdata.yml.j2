@@ -1,0 +1,113 @@
+#cloud-config
+write_files:
+- path: /etc/sudoers.d/91-sudopath
+  owner: root
+  content: |
+    Defaults secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
+
+# Enable IP forwarding for WireGuard
+- path: /etc/sysctl.d/99-wireguard.conf
+  owner: root:root
+  content: |
+    net.ipv4.ip_forward = 1
+    net.ipv6.conf.all.forwarding = 1
+
+# dnsmasq configuration
+- path: /etc/dnsmasq.d/gateway.conf
+  owner: root:root
+  permissions: '0644'
+  content: |
+    # Listen on all interfaces
+    interface=enp7s0
+    bind-interfaces
+    # DNS servers to forward to
+{% if gateway_dns_servers is defined %}
+{% for dns_server in gateway_dns_servers %}
+    server={{ dns_server }}
+{% endfor %}
+{% else %}
+    server=1.1.1.1
+    server=8.8.8.8
+{% endif %}
+    # Cache settings
+    cache-size=1000
+    # Don't read /etc/resolv.conf
+    no-resolv
+    # Don't read /etc/hosts
+    no-hosts
+
+# Squid configuration
+- path: /etc/squid/conf.d/gateway.conf
+  owner: root:root
+  permissions: '0644'
+  content: |
+    # Listen on port 3128
+    http_port 3128
+    # Allow access from private networks
+    acl localnet src 10.0.0.0/8
+    acl localnet src 172.16.0.0/12
+    acl localnet src 192.168.0.0/16
+    http_access allow localnet
+    http_access allow localhost
+    http_access deny all
+    # Cache settings
+    cache_dir ufs /var/spool/squid 1000 16 256
+    maximum_object_size 100 MB
+    cache_mem 256 MB
+
+# Docker compose file for wg-easy
+- path: /root/wg-easy/docker-compose.yml
+  owner: root:root
+  permissions: '0644'
+  content: |
+{{ lookup('template', 'docker-compose.yml.j2') | indent(4, first=True) }}
+
+hostname: {{ gateway_name }}
+fqdn: {{ gateway_name }}
+prefer_fqdn_over_hostname: true
+runcmd:
+- until ip a | grep '{{ gateway_network_prefix }}' > /dev/null; do sleep 5 && echo "waiting for network..."; done
+- systemctl stop ssh || true
+- hostnamectl set-hostname {{ inventory_hostname }}
+{% if duckdns_subdomain is defined and duckdns_token is defined %}
+- curl "https://www.duckdns.org/update?domains={{ duckdns_subdomain }}&token={{ duckdns_token }}&ip="
+{% endif %}
+- modprobe iptable_nat
+- modprobe br_netfilter
+- sysctl --system
+- chage -m 99999 -d 99999 -M 99999 root
+{% if gateway_new_user is defined %}
+- chage -m 99999 -d 99999 -M 99999 {{ gateway_new_user }}
+{% endif %}
+- apt-get -y update
+- echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+- echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+- DEBIAN_FRONTEND=noninteractive apt-get install -y nano vim software-properties-common iptables-persistent curl ca-certificates gnupg lsb-release dnsmasq squid
+- sed -i 's/#\?\(PermitRootLogin\s*\).*$/\1 yes/' /etc/ssh/sshd_config
+- systemctl restart ssh
+- systemctl enable dnsmasq
+- systemctl restart dnsmasq
+- squid -z
+- systemctl enable squid
+- systemctl restart squid
+- mkdir -p /etc/apt/keyrings
+- curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+- echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+- apt-get update
+- DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+- systemctl enable docker
+- systemctl start docker
+- mkdir -p /root/wg-easy
+- cd /root/wg-easy && docker compose up -d
+- touch /etc/cloud/cloud-init.disabled
+# auth section
+disable_root: false
+ssh_pwauth: yes
+users:
+  - name: {{ gateway_new_user | default('gatewayuser') }}
+    groups: users, admin
+    expiredate: '2032-09-01'
+    lock_passwd: false
+    passwd: {{ gateway_new_user_password | password_hash('sha512') }}
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    shell: /bin/bash

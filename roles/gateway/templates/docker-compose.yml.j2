@@ -1,0 +1,56 @@
+services:
+  wg-easy:
+    environment:
+      - INIT_ENABLED=true
+      - INIT_USERNAME=admin
+      - INIT_PASSWORD={{ gateway_wgeasy_password | default('changeme1234') }}
+      - INIT_HOST={{ gateway_url | default(gateway_server_public_ip) | default('GATEWAY_PUBLIC_IP') }}
+      - INIT_PORT={{ gateway_wireguard_port | default('51820') }}
+      - INIT_DNS=1.1.1.1
+      - INIT_IPV4_CIDR=10.200.0.0/24
+      - INIT_IPV6_CIDR=fd00:cafe::/64
+      - DISABLE_IPV6=true
+    image: ghcr.io/wg-easy/wg-easy:15
+    container_name: wg-easy
+    volumes:
+      - ~/.wg-easy:/etc/wireguard
+    ports:
+      - "51820:51820/udp"
+    expose:
+      - "51821"
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      - wg-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN={{ gateway_url | default('localhost') }}
+    command: caddy reverse-proxy --from https://{{ gateway_url | default('localhost') }} --to http://wg-easy:51821
+    networks:
+      - wg-network
+    depends_on:
+      - wg-easy
+
+networks:
+  wg-network:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

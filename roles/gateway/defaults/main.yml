@@ -1,0 +1,21 @@
+---
+# Gateway defaults
+gateway_server_type: cx23
+gateway_image: ubuntu-24.04
+
+# defaults file for internal-dns
+gateway_listen_address: "{{ listen_address | default(ansible_host) }}"
+gateway_dns_servers: "{{ dns_servers | default(['185.12.64.1', '185.12.64.2', '1.1.1.1']) }}"
+
+# WireGuard Configuration (managed by wg-easy)
+gateway_wireguard_address: "10.200.0.x"
+gateway_wireguard_port: 51820
+
+# wg-easy Web UI Configuration
+gateway_wgeasy_ui_port: 51821
+gateway_wgeasy_password: "changeme1234"  # CHANGE THIS!
+
+# WireGuard peers (not used with wg-easy - manage via web UI instead)
+# wg-easy provides a web interface at http://<gateway_ip>:51821
+# Use the web UI to add/remove clients with QR codes
+gateway_wireguard_peers: []

@@ -1,0 +1,8 @@
+pip
+cffi
+ansible-core>=2.20
+mitogen
+ansible-lint
+jmespath
+molecule
+setuptools

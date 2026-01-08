@@ -1,0 +1,39 @@
+---
+- name: Render cloud-init
+  block:
+    - name: Render cloudinit from template
+      ansible.builtin.set_fact:
+        vm_rendered_userdata: "{{ lookup('template', 'templates/cloudinit-userdata.yml.j2') }}"
+      no_log: "{{ not debug_mode | default(true) }}"
+
+- name: Create VM in private network
+  hetzner.hcloud.server:
+    api_token: "{{ hcloud_token }}"
+    name: "{{ vm_name }}"
+    server_type: "{{ vm_server_type | default('cx23') }}"
+    image: "{{ vm_image }}"
+    location: "{{ vm_location | default('hel1') }}"
+    enable_ipv4: false
+    enable_ipv6: false
+    private_networks:
+      - "{{ vm_network }}"
+    ssh_keys:
+      - "{{ secure_network_prefix }}-key"
+    user_data: "{{ vm_rendered_userdata | default(omit) }}"
+    labels:
+      role: "vm"
+    state: started
+  register: vm_server
+  delegate_to: localhost
+- name: Get server's IP address
+  block:
+    - name: Extract server IP address
+      ansible.builtin.set_fact:
+        vm_server_ip: "{{ vm_server.hcloud_server.private_networks_info[0].ip }}"
+    - name: Print the server info
+      ansible.builtin.debug:
+        msg: >-
+          VM: name={{ vm_name }};
+          privateIP={{ vm_server_ip }};
+          server_type={{ vm_server_type }};
+          image={{ vm_image }}

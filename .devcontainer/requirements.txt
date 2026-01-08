@@ -1,0 +1,6 @@
+pywinrm
+pyvmomi
+cryptography
+aiohttp
+hcloud
+passlib
