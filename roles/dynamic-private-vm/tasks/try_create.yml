@@ -1,0 +1,32 @@
+---
+- name: "Try to create VM: {{ attempt_item.location }}/{{ attempt_item.server_type }}"
+  hetzner.hcloud.server:
+    api_token: "{{ hcloud_token }}"
+    name: "{{ vm_name }}"
+    server_type: "{{ attempt_item.server_type }}"
+    image: "{{ vm_image }}"
+    location: "{{ attempt_item.location }}"
+    enable_ipv4: false
+    enable_ipv6: false
+    private_networks:
+      - "{{ vm_network }}"
+    ssh_keys:
+      - "{{ secure_network_prefix }}-key"
+    user_data: "{{ vm_rendered_userdata | default(omit) }}"
+    labels:
+      role: "vm"
+    state: started
+  register: vm_server_creation
+  ignore_errors: true
+  delegate_to: localhost
+  when: vm_created is not defined
+
+- name: Mark VM as created if successful
+  ansible.builtin.set_fact:
+    vm_created: true
+    vm_server: "{{ vm_server_creation }}"
+    vm_final_location: "{{ attempt_item.location }}"
+    vm_final_server_type: "{{ attempt_item.server_type }}"
+  when:
+    - vm_created is not defined
+    - vm_server_creation is success

@@ -25,6 +25,7 @@ all:
           vm_image: "ubuntu-24.04"
           vm_server_type: "cx33"
           vm_location: "hel1"
+          dynamic_provisioning: false
           vm_network: "net-01"
           vm_network_prefix: "10.10"
           vm_new_user: "vmuser"

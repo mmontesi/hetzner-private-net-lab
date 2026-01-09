@@ -1,0 +1,10 @@
+---
+vm_location: 'hel1'
+vm_server_type: 'cx23'
+vm_server_types_compatibility:
+  xsmall: ['cpx22', 'cx23', 'cx22', 'ccx13']
+  small: ['cpx32', 'cx33', 'cx32', 'ccx23']
+  medium: ['cpx42', 'cx43', 'cx42', 'ccx33']
+  large: ['cpx52', 'cx53', 'cx52', 'ccx43']
+  xlarge: ['cpx62', 'cx53', 'cx62', 'ccx43']
+vm_fallback_locations: ['hel1', 'fsn1', 'nbg1']

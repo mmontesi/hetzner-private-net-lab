@@ -1,0 +1,65 @@
+#cloud-config
+write_files:
+- path: /etc/sudoers.d/91-sudopath
+  owner: root
+  content: |
+    Defaults secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
+- path: /etc/environment
+  owner: root
+  content: |
+    http_proxy={{ vm_http_proxy }}
+    https_proxy={{ vm_http_proxy }}
+    HTTP_PROXY={{ vm_http_proxy }}
+    HTTPS_PROXY={{ vm_http_proxy }}
+    CONTAINERD_HTTP_PROXY={{ vm_http_proxy }}
+    CONTAINERD_HTTPS_PROXY={{ vm_http_proxy }}
+    no_proxy={{ vm_noproxy_for }}
+    NO_PROXY={{ vm_noproxy_for }}
+    CONTAINERD_NO_PROXY={{ vm_noproxy_for }}
+    PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
+# systemd-resolved configuration
+- path: /etc/systemd/resolved.conf
+  owner: root
+  content: |
+    [Resolve]
+    DNSStubListener=no
+{% if vm_primary_dns is not none and vm_primary_dns != '' %}
+    DNS={{ vm_primary_dns }}
+{% endif %}
+{% if vm_secondary_dns is not none and vm_secondary_dns != '' %}
+    FallbackDNS={{ vm_secondary_dns }}
+{% endif %}
+hostname: {{ vm_name }}
+fqdn: {{ vm_name }}
+prefer_fqdn_over_hostname: true
+# apt proxy configuration
+apt:
+  http_proxy: {{ vm_http_proxy }}
+  https_proxy: {{ vm_http_proxy }}
+
+runcmd:
+- until ip a | grep '{{ vm_network_prefix }}' > /dev/null; do sleep 5 && echo "waiting for network..."; done
+- systemctl stop ssh || true
+- hostnamectl set-hostname {{ inventory_hostname }}
+- sysctl --system
+- chage -m 99999 -d 99999 -M 99999 root
+{% if vm_new_user is defined %}
+- chage -m 99999 -d 99999 -M 99999 {{ vm_new_user }}
+{% endif %}
+- systemctl restart systemd-resolved
+- apt-get -y update
+- DEBIAN_FRONTEND=noninteractive apt-get install -y nano curl ca-certificates
+- sed -i 's/#\?\(PermitRootLogin\s*\).*$/\1 yes/' /etc/ssh/sshd_config
+- systemctl restart ssh
+- touch /etc/cloud/cloud-init.disabled
+# auth section
+disable_root: false
+ssh_pwauth: yes
+users:
+  - name: {{ vm_new_user | default('vmuser') }}
+    groups: users, admin
+    expiredate: '2032-09-01'
+    lock_passwd: false
+    passwd: {{ vm_new_user_password | password_hash('sha512') }}
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    shell: /bin/bash

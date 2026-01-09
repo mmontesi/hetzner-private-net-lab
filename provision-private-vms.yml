@@ -6,4 +6,4 @@
   tasks:
     - name: Create VM
       ansible.builtin.include_role:
-        name: private-vm
+        name: "{{ 'dynamic-private-vm' if (dynamic_provisioning | default(false)) else 'private-vm' }}"

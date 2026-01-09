@@ -1,0 +1,6 @@
+# Ignore local secrets and environment overrides
+.local/
+
+# Optional: common local env files
+*.env
+.env.local

@@ -1,0 +1,73 @@
+---
+- name: Render cloud-init
+  block:
+    - name: Render cloudinit from template
+      ansible.builtin.set_fact:
+        vm_rendered_userdata: "{{ lookup('template', 'templates/cloudinit-userdata.yml.j2') }}"
+      no_log: "{{ not debug_mode | default(true) }}"
+
+- name: Prepare attempts list
+  ansible.builtin.set_fact:
+    vm_attempts: >-
+      {%- set attempts = [] -%}
+      {%- set target_type = vm_server_type -%}
+      {%- set target_loc = vm_location -%}
+      {%- set all_locs = [target_loc] + vm_fallback_locations -%}
+      {%- set unique_locs = [] -%}
+      {%- for l in all_locs -%}
+        {%- if l not in unique_locs -%}
+          {%- set _ = unique_locs.append(l) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- set ns = namespace(found=false, types=[target_type]) -%}
+      {%- for key, values in vm_server_types_compatibility.items() -%}
+        {%- if not ns.found and target_type in values -%}
+          {%- set ns.types = values -%}
+          {%- set ns.found = true -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- set compat_types = ns.types -%}
+      {%- set types_priority = [target_type] -%}
+      {%- for t in compat_types -%}
+        {%- if t != target_type -%}
+          {%- set _ = types_priority.append(t) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- for l in unique_locs -%}
+        {%- for t in types_priority -%}
+          {%- set _ = attempts.append({'location': l, 'server_type': t}) -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {{ attempts }}
+
+- name: Debug attempts structure (if debug_mode is on)
+  ansible.builtin.debug:
+    var: vm_attempts
+  when: debug_mode | default(false)
+
+- name: Iterate attempts to create VM
+  include_tasks: try_create.yml
+  loop: "{{ vm_attempts }}"
+  loop_control:
+    loop_var: attempt_item
+  when: vm_created is not defined
+
+- name: Fail if VM could not be created
+  ansible.builtin.fail:
+    msg: "Could not create VM '{{ vm_name }}' after trying all {{ vm_attempts | length }} combinations."
+  when: vm_created is not defined
+
+- name: Get server's IP address
+  block:
+    - name: Extract server IP address
+      ansible.builtin.set_fact:
+        vm_server_ip: "{{ vm_server.hcloud_server.private_networks_info[0].ip }}"
+    - name: Print the server info
+      ansible.builtin.debug:
+        msg: >-
+          VM: name={{ vm_name }};
+          privateIP={{ vm_server_ip }};
+          server_type={{ vm_final_server_type }};
+          location={{ vm_final_location }};
+          image={{ vm_image }}
+  when: vm_created is defined

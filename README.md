@@ -12,7 +12,7 @@ This repository contains Ansible playbooks and roles to create a small private-n
 **TO DO**
 - [ ] Add a firewall rule to restrict SSH access to the gateway to a configurable IP (default: detected devbox IP).
 - [ ] Provide a teardown playbook to destroy created networks, VMs and related resources cleanly.
-- [ ] Add dynamic region and server-type selection to reduce failures from capacity limits (e.g. `server-type cpx42 not available in fsn1`).
+- [x] ~~Add dynamic region and server-type selection to reduce failures from capacity limits (e.g. `server-type cpx42 not available in fsn1`)~~.
 - [ ] Support routing between up to 3 private networks to work around per-network 100 servers limit.
 
 ## Repository layout
@@ -64,6 +64,14 @@ ansible-playbook -i inventory.yml provision-private-vms.yml --limit private-vm01
 
 - Templates are in `roles/*/templates/*.j2` and are applied by the corresponding roles. Adjust variables in your `inventory.yml` or group/host vars as needed.
 - The gateway role includes configuration for WireGuard, proxy and DNS; review `roles/gateway/templates` before running in any environment.
+
+## Dynamic provisioning
+
+This repository includes a `dynamic-private-vm` role that tries to create VMs across multiple locations and compatible server types until one succeeds. The role builds an ordered list of (location, server_type) attempts using the variables `vm_location`, `vm_fallback_locations`, `vm_server_type` and `vm_server_types_compatibility`.
+
+Locations are deduplicated and the requested `vm_server_type` is prioritized; compatible alternatives are tried in order. The role iterates the combinations and calls the `hetzner.hcloud.server` module for each attempt, ignoring individual failures and stopping as soon as a server is created. On success it sets facts such as `vm_created`, `vm_server`, `vm_final_location`, `vm_final_server_type` and `vm_server_ip` for later tasks.
+
+__NB__ Most of the code is duplicated, and the 2 roles `dynamic-private-vm` and `private-vm` should be merged, but this project is meant only to show possibilities ;)
 
 ## Security & warnings
 
