@@ -4,16 +4,17 @@ This repository contains Ansible playbooks and roles to create a small private-n
 
 **Highlights**
 - Create private networks on Hetzner (EU region).
-- Provision a gateway with a public IP that provides:
+- Provision a gateway (Ubuntu) with a public IP that provides:
   - WireGuard access (via `wg-easy` + `caddy` for HTTPS/DuckDNS).
   - HTTP/HTTPS proxy and DNS for private hosts (`squid`, `dnsmasq`).
-- Deploy cloud servers into the private networks with automated provisioning.
+- Deploy cloud servers (Ubuntu) into the private networks with automated provisioning.
 
 **TO DO**
 - [ ] Add a firewall rule to restrict SSH access to the gateway to a configurable IP (default: detected devbox IP).
 - [ ] Provide a teardown playbook to destroy created networks, VMs and related resources cleanly.
 - [x] ~~Add dynamic region and server-type selection to reduce failures from capacity limits (e.g. `server-type cpx42 not available in fsn1`)~~.
 - [ ] Support routing between up to 3 private networks to work around per-network 100 servers limit.
+- [ ] Support Debian and RH-like images (Rocky/Alma).
 
 ## Repository layout
 
